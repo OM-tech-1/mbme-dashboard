@@ -1,4 +1,4 @@
-# MBME Dashboard
+# MBME Dashboard 
 
 A small admin dashboard for the [MBME payment module](https://github.com/nexa/payment-module) — store management (create, edit, activate/deactivate, rotate HMAC secrets) against its JWT-authenticated admin API.
 
