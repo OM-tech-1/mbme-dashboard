@@ -2,7 +2,7 @@
 
 A small admin dashboard for the [MBME payment module](https://github.com/nexa/payment-module) — store management (create, edit, activate/deactivate, rotate HMAC secrets) against its JWT-authenticated admin API.
 
-Talks to `/admin-jwt/v1/*` — see `docs/admin-jwt-api.md` in the payment module repo for the full API contract and its security model (single access tier, no client-certificate gate — read that before deploying this anywhere).
+Talks to `/admin-jwt/v1/*` — see `docs/admin-jwt-api.md` in the payment  module repo for the full API contract and its security model (single access tier, no client-certificate gate — read that before deploying this anywhere).
 
 ## Stack
 
