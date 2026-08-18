@@ -133,6 +133,18 @@ export function deactivateStore(id: string) {
   return request<StoreView>(`/stores/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+// purgeStore hard-deletes. force=false throws an ApiError (409
+// has_payment_history, message includes the count) if the store has payment
+// history — the caller is expected to re-prompt and retry with force=true
+// rather than pass force=true blindly on the first attempt.
+export function purgeStore(id: string, force = false) {
+  const qs = force ? "?force=true" : "";
+  return request<{ status: string; id: string; orphaned_intents: number }>(
+    `/stores/${encodeURIComponent(id)}/purge${qs}`,
+    { method: "DELETE" },
+  );
+}
+
 export function rotateSecret(id: string, secret?: string) {
   return request<{ store_id: string; hmac_secret: string; hmac_secret_fp: string; warning: string }>(
     `/stores/${encodeURIComponent(id)}/rotate-secret`,

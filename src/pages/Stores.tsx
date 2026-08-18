@@ -6,6 +6,7 @@ import {
   createStore,
   deactivateStore,
   listStores,
+  purgeStore,
   rotateSecret,
   StoreView,
   updateStore,
@@ -59,6 +60,28 @@ export default function Stores() {
     const res = await rotateSecret(store.id);
     setRevealedSecret({ storeId: store.id, secret: res.hmac_secret });
     refresh();
+  }
+
+  async function handlePurge(store: StoreView) {
+    if (
+      !confirm(
+        `Permanently delete "${store.id}"?\n\nThis is NOT the same as deactivating — the row is gone, ` +
+          `irreversibly. Only do this for a store that never had real traffic.`,
+      )
+    )
+      return;
+    try {
+      await purgeStore(store.id, false);
+      refresh();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "has_payment_history") {
+        if (!confirm(`${e.message}\n\nDelete anyway? Those payment records will be orphaned.`)) return;
+        await purgeStore(store.id, true);
+        refresh();
+      } else {
+        setError(e instanceof ApiError ? e.message : "Could not delete store.");
+      }
+    }
   }
 
   return (
@@ -157,6 +180,12 @@ export default function Stores() {
                       >
                         Rotate secret
                       </button>
+                      <button
+                        onClick={() => handlePurge(s)}
+                        className="rounded-md px-2.5 py-1 text-xs font-medium text-red-400/80 transition hover:bg-red-500/10 hover:text-red-400"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -183,12 +212,14 @@ export default function Stores() {
         <StoreFormModal
           title={`Edit "${editing.id}"`}
           initial={editing}
+          otherStoreIds={(stores ?? []).map((s) => s.id).filter((id) => id !== editing.id)}
           onClose={() => setEditing(null)}
           onSubmit={async (values) => {
             await updateStore(editing.id, {
               return_origin: values.return_origin,
               events_url: values.events_url,
               path_template: values.path_template,
+              mirror_to_store_id: values.mirror_to_store_id ?? "",
             });
             setEditing(null);
             refresh();
@@ -254,16 +285,19 @@ interface StoreFormValues {
   return_origin: string;
   events_url: string;
   path_template?: string;
+  mirror_to_store_id?: string;
 }
 
 function StoreFormModal({
   title,
   initial,
+  otherStoreIds,
   onSubmit,
   onClose,
 }: {
   title: string;
   initial?: StoreView;
+  otherStoreIds?: string[];
   onSubmit: (values: StoreFormValues) => Promise<void>;
   onClose: () => void;
 }) {
@@ -271,6 +305,7 @@ function StoreFormModal({
   const [returnOrigin, setReturnOrigin] = useState(initial?.return_origin ?? "");
   const [eventsUrl, setEventsUrl] = useState(initial?.events_url ?? "");
   const [pathTemplate, setPathTemplate] = useState(initial?.path_template ?? "/order/{ref}");
+  const [mirrorTo, setMirrorTo] = useState(initial?.mirror_to_store_id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -279,7 +314,15 @@ function StoreFormModal({
     setError(null);
     setBusy(true);
     try {
-      await onSubmit({ id, return_origin: returnOrigin, events_url: eventsUrl, path_template: pathTemplate });
+      await onSubmit({
+        id,
+        return_origin: returnOrigin,
+        events_url: eventsUrl,
+        path_template: pathTemplate,
+        // Only meaningful on edit — omitted on create so the request body
+        // doesn't carry a field CreateStoreInput doesn't even declare.
+        ...(initial ? { mirror_to_store_id: mirrorTo } : {}),
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong.");
     } finally {
@@ -330,6 +373,28 @@ function StoreFormModal({
             placeholder="/order/{ref}"
           />
         </Field>
+
+        {initial && otherStoreIds && (
+          <Field label="Mirror outbox events to">
+            <select
+              className={inputClass}
+              value={mirrorTo}
+              onChange={(e) => setMirrorTo(e.target.value)}
+            >
+              <option value="">None</option>
+              {otherStoreIds.map((sid) => (
+                <option key={sid} value={sid}>
+                  {sid}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1.5 text-xs text-ink-400">
+              One-way, opt-in: every state-change event for "{initial.id}"'s orders also delivers to the
+              selected store, read-only. Only set this for a confirmed business relationship — see
+              CLAUDE.md invariant 10.
+            </p>
+          </Field>
+        )}
 
         {error && (
           <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
