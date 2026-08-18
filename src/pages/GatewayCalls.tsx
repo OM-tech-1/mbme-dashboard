@@ -80,11 +80,11 @@ export default function GatewayCalls() {
                 <td className="px-5 py-3.5 font-mono text-xs text-ink-100">{c.oid}</td>
                 <td className="px-5 py-3.5 text-ink-300">{c.purpose}</td>
                 <td className="px-5 py-3.5">
-                  <Badge tone={c.call_error || c.status_code >= 400 ? "danger" : "success"}>
-                    {c.call_error ? "error" : c.status_code}
+                  <Badge tone={c.error || (c.status_code ?? 0) >= 400 ? "danger" : "success"}>
+                    {c.error ? "error" : (c.status_code ?? "—")}
                   </Badge>
                 </td>
-                <td className="px-5 py-3.5 text-ink-400">{formatDate(c.created_at)}</td>
+                <td className="px-5 py-3.5 text-ink-400">{formatDate(c.called_at)}</td>
               </tr>
             ))}
           </tbody>

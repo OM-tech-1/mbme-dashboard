@@ -80,9 +80,9 @@ export default function Webhooks() {
                 onClick={() => setDetailId(w.id)}
                 className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
               >
-                <td className="px-5 py-3.5 font-mono text-xs text-ink-100">{w.oid}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-100">{w.oid ?? "—"}</td>
                 <td className="px-5 py-3.5">
-                  <StateBadge state={w.status} />
+                  <StateBadge state={w.status ?? "unknown"} />
                 </td>
                 <td className="px-5 py-3.5">
                   <Badge tone={w.signature_valid ? "success" : "danger"}>

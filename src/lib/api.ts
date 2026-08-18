@@ -246,9 +246,9 @@ export interface GatewayCallSummary {
   id: string;
   oid: string;
   purpose: string;
-  status_code: number;
-  call_error?: string;
-  created_at: string;
+  status_code?: number;
+  error?: string;
+  called_at: string;
 }
 
 export interface GatewayCallDetail extends GatewayCallSummary {
@@ -270,8 +270,8 @@ export interface WebhookSummary {
   id: string;
   received_at: string;
   signature_valid: boolean;
-  oid: string;
-  status: string;
+  oid?: string;
+  status?: string;
   processed_at?: string;
 }
 
@@ -295,11 +295,12 @@ export interface OutboxItem {
   store_id: string;
   event_type: string;
   attempts: number;
-  next_attempt_at?: string;
+  next_attempt_at: string;
+  delivered_at?: string;
   dead_lettered: boolean;
   last_error?: string;
   created_at: string;
-  payload: unknown;
+  payload?: unknown;
 }
 
 export function listOutbox(f: { store_id?: string; dead_lettered?: string; delivered?: string; cursor?: string } = {}) {
