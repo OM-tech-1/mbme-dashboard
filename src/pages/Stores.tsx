@@ -1,20 +1,22 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import Layout from "../components/Layout";
+import { Badge, Field, inputClass, Modal } from "../components/ui";
 import {
   ApiError,
-  clearSession,
   createStore,
   deactivateStore,
+  getStats,
   listStores,
   purgeStore,
   rotateSecret,
+  Stats,
   StoreView,
   updateStore,
 } from "../lib/api";
 
 export default function Stores() {
-  const navigate = useNavigate();
   const [stores, setStores] = useState<StoreView[] | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<StoreView | null>(null);
@@ -32,12 +34,8 @@ export default function Stores() {
 
   useEffect(() => {
     refresh();
+    getStats("24h").then(setStats).catch(() => {});
   }, []);
-
-  function logout() {
-    clearSession();
-    navigate("/login", { replace: true });
-  }
 
   async function toggleActive(store: StoreView) {
     if (store.active) {
@@ -85,115 +83,116 @@ export default function Stores() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-ink-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500 text-sm font-bold text-white">
-              M
-            </div>
-            <span className="text-sm font-semibold text-ink-100">MBME Payments · Admin</span>
-          </div>
-          <button
-            onClick={logout}
-            className="rounded-lg px-3 py-1.5 text-sm text-ink-300 transition hover:bg-ink-800 hover:text-ink-100"
-          >
-            Sign out
-          </button>
+    <Layout>
+      {stats && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Approved (24h)" value={String(stats.payments_by_state["APPROVED"] ?? 0)} />
+          <StatTile label="Failed (24h)" value={String(stats.payments_by_state["FAILED"] ?? 0)} />
+          <StatTile
+            label="Outbox pending"
+            value={String(stats.outbox_pending)}
+            warn={stats.outbox_dead_lettered > 0}
+          />
+          <StatTile
+            label="Webhook sig. failures"
+            value={String(stats.webhook_signature_failures)}
+            warn={stats.webhook_signature_failures > 0}
+          />
         </div>
-      </header>
+      )}
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-ink-100">Stores</h1>
-            <p className="mt-1 text-sm text-ink-300">
-              Store configuration and HMAC secrets. Changes to return origin / events URL take effect
-              immediately; secret rotation is not zero-downtime.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-600"
-          >
-            + New store
-          </button>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-ink-100">Stores</h1>
+          <p className="mt-1 text-sm text-ink-300">
+            Store configuration and HMAC secrets. Changes to return origin / events URL take effect
+            immediately; secret rotation is not zero-downtime.
+          </p>
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-600"
+        >
+          + New store
+        </button>
+      </div>
 
-        {error && (
-          <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
-        )}
+      {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
-        <div className="overflow-hidden rounded-2xl border border-ink-700 bg-ink-900">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
-                <th className="px-5 py-3 font-medium">Store</th>
-                <th className="px-5 py-3 font-medium">Return origin</th>
-                <th className="px-5 py-3 font-medium">Events URL</th>
-                <th className="px-5 py-3 font-medium">Secret</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium"></th>
+      <div className="overflow-hidden rounded-2xl border border-ink-700 bg-ink-900">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
+              <th className="px-5 py-3 font-medium">Store</th>
+              <th className="px-5 py-3 font-medium">Return origin</th>
+              <th className="px-5 py-3 font-medium">Events URL</th>
+              <th className="px-5 py-3 font-medium">Secret</th>
+              <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {stores === null && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                  Loading…
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {stores === null && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
-                    Loading…
-                  </td>
-                </tr>
-              )}
-              {stores?.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
-                    No stores yet.
-                  </td>
-                </tr>
-              )}
-              {stores?.map((s) => (
-                <tr key={s.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/50">
-                  <td className="px-5 py-3.5 font-mono text-ink-100">{s.id}</td>
-                  <td className="max-w-[220px] truncate px-5 py-3.5 text-ink-300" title={s.return_origin}>
-                    {s.return_origin}
-                  </td>
-                  <td className="max-w-[220px] truncate px-5 py-3.5 text-ink-300" title={s.events_url}>
-                    {s.events_url}
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-xs text-ink-400">{s.hmac_secret_fp}</td>
-                  <td className="px-5 py-3.5">
-                    <button onClick={() => toggleActive(s)}>
-                      <StatusBadge active={s.active} />
+            )}
+            {stores?.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                  No stores yet.
+                </td>
+              </tr>
+            )}
+            {stores?.map((s) => (
+              <tr key={s.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/50">
+                <td className="px-5 py-3.5 font-mono text-ink-100">
+                  {s.id}
+                  {s.mirror_to_store_id && (
+                    <span className="ml-2 text-xs font-sans text-ink-400">→ {s.mirror_to_store_id}</span>
+                  )}
+                </td>
+                <td className="max-w-[220px] truncate px-5 py-3.5 text-ink-300" title={s.return_origin}>
+                  {s.return_origin}
+                </td>
+                <td className="max-w-[220px] truncate px-5 py-3.5 text-ink-300" title={s.events_url}>
+                  {s.events_url}
+                </td>
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-400">{s.hmac_secret_fp}</td>
+                <td className="px-5 py-3.5">
+                  <button onClick={() => toggleActive(s)}>
+                    <Badge tone={s.active ? "success" : "neutral"}>{s.active ? "Active" : "Inactive"}</Badge>
+                  </button>
+                </td>
+                <td className="px-5 py-3.5 text-right">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setEditing(s)}
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
+                    >
+                      Edit
                     </button>
-                  </td>
-                  <td className="px-5 py-3.5 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setEditing(s)}
-                        className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleRotate(s)}
-                        className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
-                      >
-                        Rotate secret
-                      </button>
-                      <button
-                        onClick={() => handlePurge(s)}
-                        className="rounded-md px-2.5 py-1 text-xs font-medium text-red-400/80 transition hover:bg-red-500/10 hover:text-red-400"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </main>
+                    <button
+                      onClick={() => handleRotate(s)}
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100"
+                    >
+                      Rotate secret
+                    </button>
+                    <button
+                      onClick={() => handlePurge(s)}
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-red-400/80 transition hover:bg-red-500/10 hover:text-red-400"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {showCreate && (
         <StoreFormModal
@@ -234,51 +233,18 @@ export default function Stores() {
           onClose={() => setRevealedSecret(null)}
         />
       )}
+    </Layout>
+  );
+}
+
+function StatTile({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
+  return (
+    <div className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
+      <p className="text-xs text-ink-400">{label}</p>
+      <p className={"mt-1 text-xl font-semibold " + (warn ? "text-amber-400" : "text-ink-100")}>{value}</p>
     </div>
   );
 }
-
-function StatusBadge({ active }: { active: boolean }) {
-  return (
-    <span
-      className={
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium " +
-        (active ? "bg-emerald-500/10 text-emerald-400" : "bg-ink-700 text-ink-300")
-      }
-    >
-      <span className={"h-1.5 w-1.5 rounded-full " + (active ? "bg-emerald-400" : "bg-ink-400")} />
-      {active ? "Active" : "Inactive"}
-    </span>
-  );
-}
-
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-900 p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-xs font-medium text-ink-300">{label}</label>
-      {children}
-    </div>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-ink-600 bg-ink-800 px-3 py-2 text-sm text-ink-100 outline-none placeholder:text-ink-400 focus:border-accent-500 focus:ring-1 focus:ring-accent-500";
 
 interface StoreFormValues {
   id: string;
@@ -376,11 +342,7 @@ function StoreFormModal({
 
         {initial && otherStoreIds && (
           <Field label="Mirror outbox events to">
-            <select
-              className={inputClass}
-              value={mirrorTo}
-              onChange={(e) => setMirrorTo(e.target.value)}
-            >
+            <select className={inputClass} value={mirrorTo} onChange={(e) => setMirrorTo(e.target.value)}>
               <option value="">None</option>
               {otherStoreIds.map((sid) => (
                 <option key={sid} value={sid}>
@@ -396,9 +358,7 @@ function StoreFormModal({
           </Field>
         )}
 
-        {error && (
-          <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>
-        )}
+        {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
         {!initial && (
           <p className="text-xs text-ink-400">
             A new store is created active immediately. If the real URLs above aren't final yet, deactivate

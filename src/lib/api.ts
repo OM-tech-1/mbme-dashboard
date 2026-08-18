@@ -151,3 +151,176 @@ export function rotateSecret(id: string, secret?: string) {
     { method: "POST", body: secret ? JSON.stringify({ hmac_secret: secret }) : undefined },
   );
 }
+
+// ---- shared query-string helper ----
+
+function qs(params: Record<string, string | undefined>): string {
+  const usp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") usp.set(k, v);
+  }
+  const s = usp.toString();
+  return s ? `?${s}` : "";
+}
+
+// ---- stats ----
+
+export interface Stats {
+  since: string;
+  payments_by_state: Record<string, number>;
+  approved_amount_minor_by_currency: Record<string, number>;
+  outbox_pending: number;
+  outbox_dead_lettered: number;
+  webhook_signature_failures: number;
+  gateway_call_errors: number;
+}
+
+export function getStats(window?: string, storeId?: string) {
+  return request<Stats>(`/stats${qs({ window, store_id: storeId })}`);
+}
+
+// ---- payments ----
+
+export interface PaymentSummary {
+  id: string;
+  store_id: string;
+  merchant_order_ref: string;
+  opaque_ref: string;
+  amount_minor: number;
+  currency: string;
+  state: string;
+  attempts: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentAttempt {
+  id: string;
+  oid: string;
+  state: string;
+  gateway_ref: string;
+  has_payment_link: boolean;
+  link_expires_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentTransition {
+  oid: string;
+  from?: string;
+  to: string;
+  at: string;
+}
+
+export interface PaymentDetail {
+  payment: PaymentSummary;
+  return_path: string;
+  attempts: PaymentAttempt[];
+  transitions: PaymentTransition[];
+}
+
+export interface PaymentFilters {
+  store_id?: string;
+  state?: string;
+  currency?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+}
+
+export function listPayments(f: PaymentFilters = {}) {
+  const { cursor, ...rest } = f;
+  return request<{ items: PaymentSummary[]; next_cursor?: string }>(
+    `/payments${qs({ ...rest, cursor })}`,
+  );
+}
+
+export function getPayment(id: string) {
+  return request<PaymentDetail>(`/payments/${encodeURIComponent(id)}`);
+}
+
+// ---- gateway calls ----
+
+export interface GatewayCallSummary {
+  id: string;
+  oid: string;
+  purpose: string;
+  status_code: number;
+  call_error?: string;
+  created_at: string;
+}
+
+export interface GatewayCallDetail extends GatewayCallSummary {
+  request: unknown;
+  response: unknown;
+}
+
+export function listGatewayCalls(f: { oid?: string; purpose?: string; errors_only?: string; from?: string; to?: string; cursor?: string } = {}) {
+  return request<{ items: GatewayCallSummary[]; next_cursor?: string }>(`/gateway-calls${qs(f)}`);
+}
+
+export function getGatewayCall(id: string, reveal = false) {
+  return request<GatewayCallDetail>(`/gateway-calls/${encodeURIComponent(id)}${qs({ reveal: reveal ? "true" : undefined })}`);
+}
+
+// ---- webhooks ----
+
+export interface WebhookSummary {
+  id: string;
+  received_at: string;
+  signature_valid: boolean;
+  oid: string;
+  status: string;
+  processed_at?: string;
+}
+
+export interface WebhookDetail extends WebhookSummary {
+  body: unknown;
+}
+
+export function listWebhooks(f: { oid?: string; status?: string; invalid_only?: string; from?: string; to?: string; cursor?: string } = {}) {
+  return request<{ items: WebhookSummary[]; next_cursor?: string }>(`/webhooks${qs(f)}`);
+}
+
+export function getWebhook(id: string, reveal = false) {
+  return request<WebhookDetail>(`/webhooks/${encodeURIComponent(id)}${qs({ reveal: reveal ? "true" : undefined })}`);
+}
+
+// ---- outbox ----
+
+export interface OutboxItem {
+  id: string;
+  event_id: string;
+  store_id: string;
+  event_type: string;
+  attempts: number;
+  next_attempt_at?: string;
+  dead_lettered: boolean;
+  last_error?: string;
+  created_at: string;
+  payload: unknown;
+}
+
+export function listOutbox(f: { store_id?: string; dead_lettered?: string; delivered?: string; cursor?: string } = {}) {
+  return request<{ items: OutboxItem[]; next_cursor?: string }>(`/outbox${qs(f)}`);
+}
+
+export function retryOutbox(id: string) {
+  return request<{ status: string }>(`/outbox/${encodeURIComponent(id)}/retry`, { method: "POST" });
+}
+
+// ---- audit ----
+
+export interface AuditEntry {
+  id: number;
+  key_name: string;
+  action: string;
+  target: string;
+  detail: unknown;
+  at: string;
+}
+
+export function listAudit(cursor?: string) {
+  return request<{ items: AuditEntry[]; next_cursor?: string }>(`/audit${qs({ cursor })}`);
+}
