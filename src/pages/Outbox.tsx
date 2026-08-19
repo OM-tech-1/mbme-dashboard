@@ -111,8 +111,16 @@ export default function Outbox() {
                   <td className="px-5 py-3.5 text-ink-300">{o.event_type}</td>
                   <td className="px-5 py-3.5 text-ink-300">{o.attempts}</td>
                   <td className="px-5 py-3.5">
-                    <Badge tone={o.dead_lettered ? "danger" : "success"}>
-                      {o.dead_lettered ? "dead-lettered" : "delivering"}
+                    <Badge
+                      tone={
+                        o.dead_lettered ? "danger" : o.delivered_at ? "success" : "warning"
+                      }
+                    >
+                      {o.dead_lettered
+                        ? "dead-lettered"
+                        : o.delivered_at
+                          ? "delivered"
+                          : "pending"}
                     </Badge>
                   </td>
                   <td className="max-w-[260px] truncate px-5 py-3.5 text-xs text-ink-400" title={o.last_error}>
