@@ -3,12 +3,22 @@ import Layout from "../components/Layout";
 import { Badge } from "../components/ui";
 import { ApiError, listOutbox, OutboxItem, retryOutbox } from "../lib/api";
 
+function DetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <span className="font-medium text-ink-400">{label}</span>
+      <p className="mt-0.5 break-all font-mono text-ink-200">{value}</p>
+    </div>
+  );
+}
+
 export default function Outbox() {
   const [items, setItems] = useState<OutboxItem[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [deadOnly, setDeadOnly] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function load(cursor?: string, append = false) {
     try {
@@ -88,32 +98,64 @@ export default function Outbox() {
                 </td>
               </tr>
             )}
-            {items?.map((o) => (
-              <tr key={o.id} className="border-b border-ink-800 last:border-0 hover:bg-ink-800/50">
-                <td className="px-5 py-3.5 font-mono text-ink-100">{o.store_id}</td>
-                <td className="px-5 py-3.5 text-ink-300">{o.event_type}</td>
-                <td className="px-5 py-3.5 text-ink-300">{o.attempts}</td>
-                <td className="px-5 py-3.5">
-                  <Badge tone={o.dead_lettered ? "danger" : "success"}>
-                    {o.dead_lettered ? "dead-lettered" : "delivering"}
-                  </Badge>
-                </td>
-                <td className="max-w-[260px] truncate px-5 py-3.5 text-xs text-ink-400" title={o.last_error}>
-                  {o.last_error ?? "—"}
-                </td>
-                <td className="px-5 py-3.5 text-right">
-                  {o.dead_lettered && (
-                    <button
-                      onClick={() => handleRetry(o)}
-                      disabled={retrying === o.id}
-                      className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
-                    >
-                      {retrying === o.id ? "Retrying…" : "Retry"}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {items?.flatMap((o) => {
+              const expanded = expandedId === o.id;
+              const payloadObj = o.payload as Record<string, unknown> | undefined;
+              return [
+                <tr
+                  key={o.id}
+                  className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
+                  onClick={() => setExpandedId(expanded ? null : o.id)}
+                >
+                  <td className="px-5 py-3.5 font-mono text-ink-100">{o.store_id}</td>
+                  <td className="px-5 py-3.5 text-ink-300">{o.event_type}</td>
+                  <td className="px-5 py-3.5 text-ink-300">{o.attempts}</td>
+                  <td className="px-5 py-3.5">
+                    <Badge tone={o.dead_lettered ? "danger" : "success"}>
+                      {o.dead_lettered ? "dead-lettered" : "delivering"}
+                    </Badge>
+                  </td>
+                  <td className="max-w-[260px] truncate px-5 py-3.5 text-xs text-ink-400" title={o.last_error}>
+                    {o.last_error ?? "—"}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    {o.dead_lettered && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRetry(o);
+                        }}
+                        disabled={retrying === o.id}
+                        className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-700 hover:text-ink-100 disabled:opacity-50"
+                      >
+                        {retrying === o.id ? "Retrying…" : "Retry"}
+                      </button>
+                    )}
+                  </td>
+                </tr>,
+                expanded && (
+                  <tr key={`${o.id}-detail`} className="border-b border-ink-800 bg-ink-950">
+                    <td colSpan={6} className="px-5 py-4">
+                      <div className="grid gap-x-8 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                        <DetailField label="ID" value={o.id} />
+                        <DetailField label="Event ID" value={o.event_id} />
+                        <DetailField label="Created" value={o.created_at} />
+                        <DetailField label="Next attempt" value={o.next_attempt_at} />
+                        <DetailField label="Delivered" value={o.delivered_at ?? "—"} />
+                        {payloadObj && (
+                          <div className="col-span-full mt-2">
+                            <span className="font-medium text-ink-400">Payload</span>
+                            <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-ink-800 p-3 font-mono text-ink-200">
+                              {JSON.stringify(payloadObj, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              ];
+            })}
           </tbody>
         </table>
       </div>
