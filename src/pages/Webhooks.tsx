@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { Badge, formatDate, Modal, StateBadge } from "../components/ui";
+import { Badge, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
 import { ApiError, getWebhook, listWebhooks, WebhookDetail, WebhookSummary } from "../lib/api";
+
+const MODE_FILTER_KEY = "mbme_dashboard_webhook_mode_filter";
 
 export default function Webhooks() {
   const [items, setItems] = useState<WebhookSummary[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [invalidOnly, setInvalidOnly] = useState(false);
+  const [modeFilter, setModeFilter] = useState<string>(() => localStorage.getItem(MODE_FILTER_KEY) || "live");
   const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load(cursor?: string, append = false) {
     try {
-      const res = await listWebhooks({ invalid_only: invalidOnly ? "true" : undefined, cursor });
+      const res = await listWebhooks({ invalid_only: invalidOnly ? "true" : undefined, mode: modeFilter || undefined, cursor });
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setNextCursor(res.next_cursor);
       setError(null);
@@ -25,7 +28,12 @@ export default function Webhooks() {
     setItems(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invalidOnly]);
+  }, [invalidOnly, modeFilter]);
+
+  function handleModeChange(value: string) {
+    setModeFilter(value);
+    localStorage.setItem(MODE_FILTER_KEY, value);
+  }
 
   return (
     <Layout>
@@ -37,15 +45,26 @@ export default function Webhooks() {
         </p>
       </div>
 
-      <label className="mb-4 flex w-fit items-center gap-2 text-sm text-ink-300">
-        <input
-          type="checkbox"
-          checked={invalidOnly}
-          onChange={(e) => setInvalidOnly(e.target.checked)}
-          className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
-        />
-        Invalid signature only
-      </label>
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <label className="flex w-fit items-center gap-2 text-sm text-ink-300">
+          <input
+            type="checkbox"
+            checked={invalidOnly}
+            onChange={(e) => setInvalidOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
+          />
+          Invalid signature only
+        </label>
+        <select
+          value={modeFilter}
+          onChange={(e) => handleModeChange(e.target.value)}
+          className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+        >
+          <option value="">All modes</option>
+          <option value="live">Live</option>
+          <option value="test">Test</option>
+        </select>
+      </div>
 
       {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
@@ -55,6 +74,7 @@ export default function Webhooks() {
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">OID</th>
               <th className="px-5 py-3 font-medium">Status</th>
+              <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Signature</th>
               <th className="px-5 py-3 font-medium">Received</th>
             </tr>
@@ -62,14 +82,14 @@ export default function Webhooks() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={5} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={5} className="px-5 py-8 text-center text-ink-400">
                   No webhooks match.
                 </td>
               </tr>
@@ -84,6 +104,7 @@ export default function Webhooks() {
                 <td className="px-5 py-3.5">
                   <StateBadge state={w.status ?? "unknown"} />
                 </td>
+                <td className="px-5 py-3.5"><ModeBadge mode={w.mode} /></td>
                 <td className="px-5 py-3.5">
                   <Badge tone={w.signature_valid ? "success" : "danger"}>
                     {w.signature_valid ? "valid" : "invalid"}

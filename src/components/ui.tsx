@@ -90,6 +90,23 @@ export function StateBadge({ state }: { state: string }) {
   return <Badge tone={stateTone(state)}>{state}</Badge>;
 }
 
+export function ModeBadge({ mode }: { mode: string }) {
+  if (mode === "live") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        LIVE
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+      TEST
+    </span>
+  );
+}
+
 export function formatAmount(minor: number, currency: string): string {
   // Matches the module's own per-currency exponent table (CLAUDE.md) rather
   // than assuming 2 decimals — KWD/BHD/OMR use 3, JPY uses 0.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { Badge } from "../components/ui";
+import { Badge, ModeBadge } from "../components/ui";
 import { ApiError, listOutbox, OutboxItem, retryOutbox } from "../lib/api";
 
 function DetailField({ label, value }: { label: string; value: string }) {
@@ -17,12 +17,13 @@ export default function Outbox() {
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [deadOnly, setDeadOnly] = useState(false);
+  const [modeFilter, setModeFilter] = useState<string>(() => localStorage.getItem("mbme_dashboard_outbox_mode_filter") || "live");
   const [retrying, setRetrying] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   async function load(cursor?: string, append = false) {
     try {
-      const res = await listOutbox({ dead_lettered: deadOnly ? "true" : undefined, cursor });
+      const res = await listOutbox({ dead_lettered: deadOnly ? "true" : undefined, mode: modeFilter || undefined, cursor });
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setNextCursor(res.next_cursor);
       setError(null);
@@ -35,7 +36,12 @@ export default function Outbox() {
     setItems(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deadOnly]);
+  }, [deadOnly, modeFilter]);
+
+  function handleModeChange(value: string) {
+    setModeFilter(value);
+    localStorage.setItem("mbme_dashboard_outbox_mode_filter", value);
+  }
 
   async function handleRetry(item: OutboxItem) {
     setRetrying(item.id);
@@ -59,15 +65,26 @@ export default function Outbox() {
         </p>
       </div>
 
-      <label className="mb-4 flex w-fit items-center gap-2 text-sm text-ink-300">
-        <input
-          type="checkbox"
-          checked={deadOnly}
-          onChange={(e) => setDeadOnly(e.target.checked)}
-          className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
-        />
-        Dead-lettered only
-      </label>
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <label className="flex w-fit items-center gap-2 text-sm text-ink-300">
+          <input
+            type="checkbox"
+            checked={deadOnly}
+            onChange={(e) => setDeadOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
+          />
+          Dead-lettered only
+        </label>
+        <select
+          value={modeFilter}
+          onChange={(e) => handleModeChange(e.target.value)}
+          className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+        >
+          <option value="">All modes</option>
+          <option value="live">Live</option>
+          <option value="test">Test</option>
+        </select>
+      </div>
 
       {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
@@ -77,6 +94,7 @@ export default function Outbox() {
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Store</th>
               <th className="px-5 py-3 font-medium">Event</th>
+              <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Attempts</th>
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium">Last error</th>
@@ -86,14 +104,14 @@ export default function Outbox() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   Nothing here.
                 </td>
               </tr>
@@ -107,9 +125,10 @@ export default function Outbox() {
                   className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
                   onClick={() => setExpandedId(expanded ? null : o.id)}
                 >
-                  <td className="px-5 py-3.5 font-mono text-ink-100">{o.store_id}</td>
-                  <td className="px-5 py-3.5 text-ink-300">{o.event_type}</td>
-                  <td className="px-5 py-3.5 text-ink-300">{o.attempts}</td>
+                <td className="px-5 py-3.5 font-mono text-ink-100">{o.store_id}</td>
+                <td className="px-5 py-3.5 text-ink-300">{o.event_type}</td>
+                <td className="px-5 py-3.5"><ModeBadge mode={o.mode} /></td>
+                <td className="px-5 py-3.5 text-ink-300">{o.attempts}</td>
                   <td className="px-5 py-3.5">
                     <Badge
                       tone={
@@ -143,7 +162,7 @@ export default function Outbox() {
                 </tr>,
                 expanded && (
                   <tr key={`${o.id}-detail`} className="border-b border-ink-800 bg-ink-950">
-                    <td colSpan={6} className="px-5 py-4">
+                    <td colSpan={7} className="px-5 py-4">
                       <div className="grid gap-x-8 gap-y-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
                         <DetailField label="ID" value={o.id} />
                         <DetailField label="Event ID" value={o.event_id} />

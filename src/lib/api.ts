@@ -175,8 +175,8 @@ export interface Stats {
   gateway_call_errors: number;
 }
 
-export function getStats(window?: string, storeId?: string) {
-  return request<Stats>(`/stats${qs({ window, store_id: storeId })}`);
+export function getStats(window?: string, storeId?: string, mode?: string) {
+  return request<Stats>(`/stats${qs({ window, store_id: storeId, mode })}`);
 }
 
 // ---- payments ----
@@ -189,6 +189,7 @@ export interface PaymentSummary {
   amount_minor: number;
   currency: string;
   state: string;
+  mode: string;
   attempts: number;
   created_at: string;
   updated_at: string;
@@ -223,6 +224,7 @@ export interface PaymentFilters {
   store_id?: string;
   state?: string;
   currency?: string;
+  mode?: string;
   q?: string;
   from?: string;
   to?: string;
@@ -246,6 +248,7 @@ export interface GatewayCallSummary {
   id: string;
   oid: string;
   purpose: string;
+  mode: string;
   status_code?: number;
   error?: string;
   called_at: string;
@@ -256,7 +259,7 @@ export interface GatewayCallDetail extends GatewayCallSummary {
   response: unknown;
 }
 
-export function listGatewayCalls(f: { oid?: string; purpose?: string; errors_only?: string; from?: string; to?: string; cursor?: string } = {}) {
+export function listGatewayCalls(f: { oid?: string; purpose?: string; mode?: string; errors_only?: string; from?: string; to?: string; cursor?: string } = {}) {
   return request<{ items: GatewayCallSummary[]; next_cursor?: string }>(`/gateway-calls${qs(f)}`);
 }
 
@@ -273,13 +276,14 @@ export interface WebhookSummary {
   oid?: string;
   status?: string;
   processed_at?: string;
+  mode: string;
 }
 
 export interface WebhookDetail extends WebhookSummary {
   body: unknown;
 }
 
-export function listWebhooks(f: { oid?: string; status?: string; invalid_only?: string; from?: string; to?: string; cursor?: string } = {}) {
+export function listWebhooks(f: { oid?: string; status?: string; mode?: string; invalid_only?: string; from?: string; to?: string; cursor?: string } = {}) {
   return request<{ items: WebhookSummary[]; next_cursor?: string }>(`/webhooks${qs(f)}`);
 }
 
@@ -299,11 +303,12 @@ export interface OutboxItem {
   delivered_at?: string;
   dead_lettered: boolean;
   last_error?: string;
+  mode: string;
   created_at: string;
   payload?: unknown;
 }
 
-export function listOutbox(f: { store_id?: string; dead_lettered?: string; delivered?: string; cursor?: string } = {}) {
+export function listOutbox(f: { store_id?: string; mode?: string; dead_lettered?: string; delivered?: string; cursor?: string } = {}) {
   return request<{ items: OutboxItem[]; next_cursor?: string }>(`/outbox${qs(f)}`);
 }
 

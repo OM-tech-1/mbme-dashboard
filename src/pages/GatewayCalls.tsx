@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { Badge, formatDate, Modal } from "../components/ui";
+import { Badge, formatDate, Modal, ModeBadge } from "../components/ui";
 import { ApiError, GatewayCallDetail, GatewayCallSummary, getGatewayCall, listGatewayCalls } from "../lib/api";
+
+const MODE_FILTER_KEY = "mbme_dashboard_gw_mode_filter";
 
 export default function GatewayCalls() {
   const [items, setItems] = useState<GatewayCallSummary[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [errorsOnly, setErrorsOnly] = useState(false);
+  const [modeFilter, setModeFilter] = useState<string>(() => localStorage.getItem(MODE_FILTER_KEY) || "live");
   const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load(cursor?: string, append = false) {
     try {
-      const res = await listGatewayCalls({ errors_only: errorsOnly ? "true" : undefined, cursor });
+      const res = await listGatewayCalls({ errors_only: errorsOnly ? "true" : undefined, mode: modeFilter || undefined, cursor });
       setItems((prev) => (append && prev ? [...prev, ...res.items] : res.items));
       setNextCursor(res.next_cursor);
       setError(null);
@@ -25,7 +28,12 @@ export default function GatewayCalls() {
     setItems(null);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [errorsOnly]);
+  }, [errorsOnly, modeFilter]);
+
+  function handleModeChange(value: string) {
+    setModeFilter(value);
+    localStorage.setItem(MODE_FILTER_KEY, value);
+  }
 
   return (
     <Layout>
@@ -34,15 +42,26 @@ export default function GatewayCalls() {
         <p className="mt-1 text-sm text-ink-300">Every request this module made to MBME.</p>
       </div>
 
-      <label className="mb-4 flex w-fit items-center gap-2 text-sm text-ink-300">
-        <input
-          type="checkbox"
-          checked={errorsOnly}
-          onChange={(e) => setErrorsOnly(e.target.checked)}
-          className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
-        />
-        Errors only
-      </label>
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <label className="flex w-fit items-center gap-2 text-sm text-ink-300">
+          <input
+            type="checkbox"
+            checked={errorsOnly}
+            onChange={(e) => setErrorsOnly(e.target.checked)}
+            className="h-4 w-4 rounded border-ink-600 bg-ink-800 accent-accent-500"
+          />
+          Errors only
+        </label>
+        <select
+          value={modeFilter}
+          onChange={(e) => handleModeChange(e.target.value)}
+          className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+        >
+          <option value="">All modes</option>
+          <option value="live">Live</option>
+          <option value="test">Test</option>
+        </select>
+      </div>
 
       {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
 
@@ -52,6 +71,7 @@ export default function GatewayCalls() {
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">OID</th>
               <th className="px-5 py-3 font-medium">Purpose</th>
+              <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium">Time</th>
             </tr>
@@ -59,14 +79,14 @@ export default function GatewayCalls() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={5} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={5} className="px-5 py-8 text-center text-ink-400">
                   No gateway calls match.
                 </td>
               </tr>
@@ -79,6 +99,7 @@ export default function GatewayCalls() {
               >
                 <td className="px-5 py-3.5 font-mono text-xs text-ink-100">{c.oid}</td>
                 <td className="px-5 py-3.5 text-ink-300">{c.purpose}</td>
+                <td className="px-5 py-3.5"><ModeBadge mode={c.mode} /></td>
                 <td className="px-5 py-3.5">
                   <Badge tone={c.error || (c.status_code ?? 0) >= 400 ? "danger" : "success"}>
                     {c.error ? "error" : (c.status_code ?? "—")}

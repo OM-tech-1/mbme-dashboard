@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { formatAmount, formatDate, Modal, StateBadge } from "../components/ui";
+import { formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
 import { ApiError, getPayment, listPayments, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
+
+const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
 export default function Payments() {
   const [items, setItems] = useState<PaymentSummary[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<PaymentFilters>({});
+  const [filters, setFilters] = useState<PaymentFilters>({
+    mode: (localStorage.getItem(MODE_FILTER_KEY) as string) || "live",
+  });
   const [detailId, setDetailId] = useState<string | null>(null);
 
   async function load(f: PaymentFilters, append = false) {
@@ -25,15 +29,18 @@ export default function Payments() {
     setItems(null);
     load(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.store_id, filters.state, filters.currency, filters.q]);
+  }, [filters.store_id, filters.state, filters.currency, filters.q, filters.mode]);
 
   function applyFilterForm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const mode = (fd.get("mode") as string) || undefined;
+    if (mode !== undefined) localStorage.setItem(MODE_FILTER_KEY, mode);
     setFilters({
       store_id: (fd.get("store_id") as string) || undefined,
       state: (fd.get("state") as string) || undefined,
       currency: (fd.get("currency") as string) || undefined,
+      mode,
       q: (fd.get("q") as string) || undefined,
     });
   }
@@ -77,6 +84,15 @@ export default function Payments() {
           placeholder="Currency"
           className="w-24 rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-400 focus:border-accent-500"
         />
+        <select
+          name="mode"
+          defaultValue={filters.mode ?? ""}
+          className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+        >
+          <option value="">All modes</option>
+          <option value="live">Live</option>
+          <option value="test">Test</option>
+        </select>
         <button
           type="submit"
           className="rounded-lg bg-ink-700 px-4 py-1.5 text-sm font-medium text-ink-100 transition hover:bg-ink-600"
@@ -93,6 +109,7 @@ export default function Payments() {
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Order ref</th>
               <th className="px-5 py-3 font-medium">Store</th>
+              <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Amount</th>
               <th className="px-5 py-3 font-medium">State</th>
               <th className="px-5 py-3 font-medium">Attempts</th>
@@ -102,14 +119,14 @@ export default function Payments() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   No payments match.
                 </td>
               </tr>
@@ -122,6 +139,7 @@ export default function Payments() {
               >
                 <td className="px-5 py-3.5 font-mono text-ink-100">{p.merchant_order_ref}</td>
                 <td className="px-5 py-3.5 text-ink-300">{p.store_id}</td>
+                <td className="px-5 py-3.5"><ModeBadge mode={p.mode} /></td>
                 <td className="px-5 py-3.5 text-ink-300">{formatAmount(p.amount_minor, p.currency)}</td>
                 <td className="px-5 py-3.5">
                   <StateBadge state={p.state} />
@@ -171,7 +189,10 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
               <h2 className="text-base font-semibold text-ink-100">{detail.payment.merchant_order_ref}</h2>
               <p className="mt-1 font-mono text-xs text-ink-400">{detail.payment.opaque_ref}</p>
             </div>
-            <StateBadge state={detail.payment.state} />
+            <div className="flex items-center gap-2">
+              <ModeBadge mode={detail.payment.mode} />
+              <StateBadge state={detail.payment.state} />
+            </div>
           </div>
 
           <dl className="mb-6 grid grid-cols-2 gap-3 text-sm">
