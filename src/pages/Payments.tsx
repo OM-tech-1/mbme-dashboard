@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { Badge, formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
-import { ApiError, getPayment, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
+import { ApiError, getGatewayCall, getPayment, getWebhook, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
@@ -108,6 +108,7 @@ export default function Payments() {
           <thead>
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Order ref</th>
+              <th className="px-5 py-3 font-medium">OID</th>
               <th className="px-5 py-3 font-medium">Store</th>
               <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Amount</th>
@@ -119,14 +120,14 @@ export default function Payments() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
                   No payments match.
                 </td>
               </tr>
@@ -138,6 +139,7 @@ export default function Payments() {
                 className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
               >
                 <td className="px-5 py-3.5 font-mono text-ink-100">{p.merchant_order_ref}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{p.id}</td>
                 <td className="px-5 py-3.5 text-ink-300">{p.store_id}</td>
                 <td className="px-5 py-3.5"><ModeBadge mode={p.mode} /></td>
                 <td className="px-5 py-3.5 text-ink-300">{formatAmount(p.amount_minor, p.currency)}</td>
@@ -264,12 +266,28 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
           {activeTab === "attempts" && (
             <div className="space-y-2">
               {detail.attempts.map((a) => (
-                <div key={a.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                <div
+                  key={a.id}
+                  onClick={() => toggleExpand(a.id)}
+                  className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-ink-300">{a.oid}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-ink-500 text-xs">{expandedIds.has(a.id) ? "▼" : "▶"}</span>
+                      <span className="font-mono text-xs text-ink-300">{a.oid}</span>
+                    </div>
                     <StateBadge state={a.state} />
                   </div>
                   {a.gateway_ref && <p className="mt-1 text-xs text-ink-400">gateway ref: {a.gateway_ref}</p>}
+                  {expandedIds.has(a.id) && (
+                    <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2 space-y-1">
+                      <div><span className="text-xs text-ink-400">ID: </span><span className="font-mono text-xs text-ink-300">{a.id}</span></div>
+                      <div><span className="text-xs text-ink-400">Created: </span><span className="text-xs text-ink-300">{formatDate(a.created_at)}</span></div>
+                      <div><span className="text-xs text-ink-400">Updated: </span><span className="text-xs text-ink-300">{formatDate(a.updated_at)}</span></div>
+                      <div><span className="text-xs text-ink-400">Payment link: </span><span className="text-xs text-ink-300">{a.has_payment_link ? "Yes" : "No"}</span></div>
+                      {a.link_expires_at && <div><span className="text-xs text-ink-400">Link expires: </span><span className="text-xs text-ink-300">{formatDate(a.link_expires_at)}</span></div>}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -283,16 +301,7 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
                 <p className="text-sm text-ink-400">No gateway calls for this OID.</p>
               ) : (
                 gatewayCalls.map((c) => (
-                  <div key={c.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs text-ink-300">{c.purpose}</span>
-                      <div className="flex items-center gap-2">
-                        {c.status_code && <span className="text-xs text-ink-400">{c.status_code}</span>}
-                        {c.error && <span className="text-xs text-red-400">{c.error}</span>}
-                      </div>
-                    </div>
-                    <p className="mt-1 text-xs text-ink-500">{formatDate(c.called_at)}</p>
-                  </div>
+                  <GatewayCallItem key={c.id} call={c} expanded={expandedIds.has(c.id)} onToggle={() => toggleExpand(c.id)} />
                 ))
               )}
             </div>
@@ -306,15 +315,7 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
                 <p className="text-sm text-ink-400">No webhooks for this OID.</p>
               ) : (
                 webhooks.map((w) => (
-                  <div key={w.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-ink-300">{w.status ?? "—"}</span>
-                      <Badge tone={w.signature_valid ? "success" : "danger"}>
-                        {w.signature_valid ? "Valid sig" : "Invalid sig"}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-ink-500">{formatDate(w.received_at)}</p>
-                  </div>
+                  <WebhookItem key={w.id} hook={w} expanded={expandedIds.has(w.id)} onToggle={() => toggleExpand(w.id)} />
                 ))
               )}
             </div>
@@ -384,5 +385,129 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
         </>
       )}
     </Modal>
+  );
+}
+
+function GatewayCallItem({
+  call,
+  expanded,
+  onToggle,
+}: {
+  call: import("../lib/api").GatewayCallSummary;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const [detail, setDetail] = useState<import("../lib/api").GatewayCallDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (expanded && !detail && !loading) {
+      setLoading(true);
+      getGatewayCall(call.id, true)
+        .then(setDetail)
+        .catch(() => setDetail(null))
+        .finally(() => setLoading(false));
+    }
+  }, [expanded, detail, loading, call.id]);
+
+  return (
+    <div
+      onClick={onToggle}
+      className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-ink-500 text-xs">{expanded ? "▼" : "▶"}</span>
+          <span className="font-mono text-xs text-ink-300">{call.purpose}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {call.status_code && <span className="text-xs text-ink-400">{call.status_code}</span>}
+          {call.error && <span className="text-xs text-red-400">{call.error}</span>}
+        </div>
+      </div>
+      <p className="mt-1 text-xs text-ink-500">{formatDate(call.called_at)}</p>
+      {expanded && (
+        <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2">
+          <p className="mb-1 text-xs text-ink-400">ID</p>
+          <p className="font-mono text-xs text-ink-300 mb-2">{call.id}</p>
+          <p className="mb-1 text-xs text-ink-400">OID</p>
+          <p className="font-mono text-xs text-ink-300 mb-2">{call.oid}</p>
+          {loading && <p className="text-xs text-ink-400">Loading details…</p>}
+          {detail?.request != null && (
+            <>
+              <p className="mb-1 text-xs text-ink-400">Request</p>
+              <pre className="max-h-48 overflow-auto rounded bg-ink-950 p-2 text-xs text-ink-300 whitespace-pre-wrap break-all">
+                {typeof detail.request === "string" ? detail.request : JSON.stringify(detail.request, null, 2)}
+              </pre>
+            </>
+          )}
+          {detail?.response != null && (
+            <>
+              <p className="mt-2 mb-1 text-xs text-ink-400">Response</p>
+              <pre className="max-h-48 overflow-auto rounded bg-ink-950 p-2 text-xs text-ink-300 whitespace-pre-wrap break-all">
+                {typeof detail.response === "string" ? detail.response : JSON.stringify(detail.response, null, 2)}
+              </pre>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WebhookItem({
+  hook,
+  expanded,
+  onToggle,
+}: {
+  hook: import("../lib/api").WebhookSummary;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const [detail, setDetail] = useState<import("../lib/api").WebhookDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (expanded && !detail && !loading) {
+      setLoading(true);
+      getWebhook(hook.id, true)
+        .then(setDetail)
+        .catch(() => setDetail(null))
+        .finally(() => setLoading(false));
+    }
+  }, [expanded, detail, loading, hook.id]);
+
+  return (
+    <div
+      onClick={onToggle}
+      className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-ink-500 text-xs">{expanded ? "▼" : "▶"}</span>
+          <span className="text-xs text-ink-300">{hook.status ?? "—"}</span>
+        </div>
+        <Badge tone={hook.signature_valid ? "success" : "danger"}>
+          {hook.signature_valid ? "Valid sig" : "Invalid sig"}
+        </Badge>
+      </div>
+      <p className="mt-1 text-xs text-ink-500">{formatDate(hook.received_at)}</p>
+      {expanded && (
+        <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2">
+          <p className="mb-1 text-xs text-ink-400">ID</p>
+          <p className="font-mono text-xs text-ink-300 mb-2">{hook.id}</p>
+          {hook.oid && <><p className="mb-1 text-xs text-ink-400">OID</p><p className="font-mono text-xs text-ink-300 mb-2">{hook.oid}</p></>}
+          {loading && <p className="text-xs text-ink-400">Loading body…</p>}
+          {detail?.body != null && (
+            <>
+              <p className="mb-1 text-xs text-ink-400">Body</p>
+              <pre className="max-h-48 overflow-auto rounded bg-ink-950 p-2 text-xs text-ink-300 whitespace-pre-wrap break-all">
+                {typeof detail.body === "string" ? detail.body : JSON.stringify(detail.body, null, 2)}
+              </pre>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
