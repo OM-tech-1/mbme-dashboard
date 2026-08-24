@@ -175,6 +175,15 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
   const [webhooks, setWebhooks] = useState<import("../lib/api").WebhookSummary[] | null>(null);
   const [outboxItems, setOutboxItems] = useState<import("../lib/api").OutboxItem[] | null>(null);
   const [activeTab, setActiveTab] = useState<"attempts" | "gateway" | "webhooks" | "outbox">("attempts");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpand(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     getPayment(id)
@@ -319,9 +328,16 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
                 <p className="text-sm text-ink-400">No outbox items for this store.</p>
               ) : (
                 outboxItems.map((o) => (
-                  <div key={o.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                  <div
+                    key={o.id}
+                    onClick={() => toggleExpand(o.id)}
+                    className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs text-ink-300">{o.event_type}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-ink-500 text-xs">{expandedIds.has(o.id) ? "▼" : "▶"}</span>
+                        <span className="font-mono text-xs text-ink-300">{o.event_type}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         {o.dead_lettered && <Badge tone="danger">Dead letter</Badge>}
                         {o.delivered_at ? (
@@ -333,6 +349,22 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
                     </div>
                     {o.last_error && <p className="mt-1 text-xs text-red-400">{o.last_error}</p>}
                     <p className="mt-1 text-xs text-ink-500">Attempts: {o.attempts} · {formatDate(o.created_at)}</p>
+                    {expandedIds.has(o.id) && (
+                      <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2">
+                        <p className="mb-1 text-xs text-ink-400">Event ID</p>
+                        <p className="font-mono text-xs text-ink-300 mb-2">{o.event_id}</p>
+                        {o.payload ? (
+                          <>
+                            <p className="mb-1 text-xs text-ink-400">Payload</p>
+                            <pre className="max-h-48 overflow-auto rounded bg-ink-950 p-2 text-xs text-ink-300 whitespace-pre-wrap break-all">
+                              {typeof o.payload === "string" ? o.payload : JSON.stringify(o.payload, null, 2)}
+                            </pre>
+                          </>
+                        ) : (
+                          <p className="text-xs text-ink-500 italic">No payload</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
