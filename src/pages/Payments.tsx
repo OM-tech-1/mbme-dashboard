@@ -197,7 +197,16 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
           listGatewayCalls({ oid }).then((r) => setGatewayCalls(r.items)).catch(() => setGatewayCalls([]));
           listWebhooks({ oid }).then((r) => setWebhooks(r.items)).catch(() => setWebhooks([]));
         }
-        listOutbox({ store_id: d.payment.store_id }).then((r) => setOutboxItems(r.items)).catch(() => setOutboxItems([]));
+        listOutbox({ store_id: d.payment.store_id })
+          .then((r) => {
+            const filtered = r.items.filter((o) => {
+              if (!o.payload || typeof o.payload !== "object") return false;
+              const p = o.payload as Record<string, unknown>;
+              return p.merchant_order_ref === d.payment.merchant_order_ref;
+            });
+            setOutboxItems(filtered);
+          })
+          .catch(() => setOutboxItems([]));
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load payment."));
   }, [id]);
