@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
-import { formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
-import { ApiError, getPayment, listPayments, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
+import { Badge, formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
+import { ApiError, getPayment, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
@@ -108,7 +108,6 @@ export default function Payments() {
           <thead>
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Order ref</th>
-              <th className="px-5 py-3 font-medium">OID</th>
               <th className="px-5 py-3 font-medium">Store</th>
               <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Amount</th>
@@ -120,14 +119,14 @@ export default function Payments() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
                   No payments match.
                 </td>
               </tr>
@@ -139,7 +138,6 @@ export default function Payments() {
                 className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
               >
                 <td className="px-5 py-3.5 font-mono text-ink-100">{p.merchant_order_ref}</td>
-                <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{p.oid}</td>
                 <td className="px-5 py-3.5 text-ink-300">{p.store_id}</td>
                 <td className="px-5 py-3.5"><ModeBadge mode={p.mode} /></td>
                 <td className="px-5 py-3.5 text-ink-300">{formatAmount(p.amount_minor, p.currency)}</td>
@@ -173,12 +171,32 @@ export default function Payments() {
 function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }) {
   const [detail, setDetail] = useState<PaymentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [gatewayCalls, setGatewayCalls] = useState<import("../lib/api").GatewayCallSummary[] | null>(null);
+  const [webhooks, setWebhooks] = useState<import("../lib/api").WebhookSummary[] | null>(null);
+  const [outboxItems, setOutboxItems] = useState<import("../lib/api").OutboxItem[] | null>(null);
+  const [activeTab, setActiveTab] = useState<"attempts" | "gateway" | "webhooks" | "outbox">("attempts");
 
   useEffect(() => {
     getPayment(id)
-      .then(setDetail)
+      .then((d) => {
+        setDetail(d);
+        // Fetch related data using the first attempt's OID
+        const oid = d.attempts[0]?.oid;
+        if (oid) {
+          listGatewayCalls({ oid }).then((r) => setGatewayCalls(r.items)).catch(() => setGatewayCalls([]));
+          listWebhooks({ oid }).then((r) => setWebhooks(r.items)).catch(() => setWebhooks([]));
+        }
+        listOutbox({ store_id: d.payment.store_id }).then((r) => setOutboxItems(r.items)).catch(() => setOutboxItems([]));
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Could not load payment."));
   }, [id]);
+
+  const tabs = [
+    { key: "attempts" as const, label: "Attempts", count: detail?.attempts.length ?? 0 },
+    { key: "gateway" as const, label: "Gateway Calls", count: gatewayCalls?.length ?? 0 },
+    { key: "webhooks" as const, label: "Webhooks", count: webhooks?.length ?? 0 },
+    { key: "outbox" as const, label: "Outbox", count: outboxItems?.length ?? 0 },
+  ];
 
   return (
     <Modal onClose={onClose} wide>
@@ -216,22 +234,112 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
             </div>
           </dl>
 
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">
-            Attempts ({detail.attempts.length})
-          </h3>
-          <div className="mb-6 space-y-2">
-            {detail.attempts.map((a) => (
-              <div key={a.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-ink-300">{a.oid}</span>
-                  <StateBadge state={a.state} />
-                </div>
-                {a.gateway_ref && <p className="mt-1 text-xs text-ink-400">gateway ref: {a.gateway_ref}</p>}
-              </div>
+          {/* Tab navigation */}
+          <div className="mb-4 flex gap-1 border-b border-ink-700">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`px-3 py-2 text-xs font-medium transition ${
+                  activeTab === t.key
+                    ? "border-b-2 border-accent-500 text-ink-100"
+                    : "text-ink-400 hover:text-ink-200"
+                }`}
+              >
+                {t.label} ({t.count})
+              </button>
             ))}
           </div>
 
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">State timeline</h3>
+          {/* Tab content */}
+          {activeTab === "attempts" && (
+            <div className="space-y-2">
+              {detail.attempts.map((a) => (
+                <div key={a.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs text-ink-300">{a.oid}</span>
+                    <StateBadge state={a.state} />
+                  </div>
+                  {a.gateway_ref && <p className="mt-1 text-xs text-ink-400">gateway ref: {a.gateway_ref}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === "gateway" && (
+            <div className="space-y-2">
+              {gatewayCalls === null ? (
+                <p className="text-sm text-ink-400">Loading…</p>
+              ) : gatewayCalls.length === 0 ? (
+                <p className="text-sm text-ink-400">No gateway calls for this OID.</p>
+              ) : (
+                gatewayCalls.map((c) => (
+                  <div key={c.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-ink-300">{c.purpose}</span>
+                      <div className="flex items-center gap-2">
+                        {c.status_code && <span className="text-xs text-ink-400">{c.status_code}</span>}
+                        {c.error && <span className="text-xs text-red-400">{c.error}</span>}
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-500">{formatDate(c.called_at)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === "webhooks" && (
+            <div className="space-y-2">
+              {webhooks === null ? (
+                <p className="text-sm text-ink-400">Loading…</p>
+              ) : webhooks.length === 0 ? (
+                <p className="text-sm text-ink-400">No webhooks for this OID.</p>
+              ) : (
+                webhooks.map((w) => (
+                  <div key={w.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-ink-300">{w.status ?? "—"}</span>
+                      <Badge tone={w.signature_valid ? "success" : "danger"}>
+                        {w.signature_valid ? "Valid sig" : "Invalid sig"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-ink-500">{formatDate(w.received_at)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {activeTab === "outbox" && (
+            <div className="space-y-2">
+              {outboxItems === null ? (
+                <p className="text-sm text-ink-400">Loading…</p>
+              ) : outboxItems.length === 0 ? (
+                <p className="text-sm text-ink-400">No outbox items for this store.</p>
+              ) : (
+                outboxItems.map((o) => (
+                  <div key={o.id} className="rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs text-ink-300">{o.event_type}</span>
+                      <div className="flex items-center gap-2">
+                        {o.dead_lettered && <Badge tone="danger">Dead letter</Badge>}
+                        {o.delivered_at ? (
+                          <Badge tone="success">Delivered</Badge>
+                        ) : (
+                          <Badge tone="neutral">Pending</Badge>
+                        )}
+                      </div>
+                    </div>
+                    {o.last_error && <p className="mt-1 text-xs text-red-400">{o.last_error}</p>}
+                    <p className="mt-1 text-xs text-ink-500">Attempts: {o.attempts} · {formatDate(o.created_at)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <h3 className="mt-6 mb-2 text-xs font-medium uppercase tracking-wide text-ink-400">State timeline</h3>
           <div className="space-y-1.5 text-sm">
             {detail.transitions.map((t, i) => (
               <div key={i} className="flex items-center gap-2 text-ink-300">

@@ -183,7 +183,6 @@ export function getStats(window?: string, storeId?: string, mode?: string) {
 
 export interface PaymentSummary {
   id: string;
-  oid: string;
   store_id: string;
   merchant_order_ref: string;
   opaque_ref: string;
