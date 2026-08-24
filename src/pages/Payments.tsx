@@ -5,7 +5,7 @@ import { ApiError, getGatewayCall, getPayment, getWebhook, listGatewayCalls, lis
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
-function CopyOidButton({ oid }: { oid: string }) {
+function CopyOidOverlay({ oid, visible }: { oid: string; visible: boolean }) {
   const [copied, setCopied] = useState(false);
 
   function handleCopy(e: React.MouseEvent) {
@@ -18,9 +18,14 @@ function CopyOidButton({ oid }: { oid: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="ml-2 rounded bg-ink-700 px-1.5 py-0.5 text-xs text-ink-300 transition hover:bg-ink-600 hover:text-ink-100"
+      className={`absolute inset-y-0 right-0 z-10 flex items-center justify-end rounded-r-lg bg-ink-800/90 pr-5 backdrop-blur-sm transition-opacity duration-200 ${
+        visible ? "opacity-100" : "pointer-events-none opacity-0"
+      }`}
+      style={{ left: 0 }}
     >
-      {copied ? "Copied!" : "Copy OID"}
+      <span className="rounded-md bg-accent-500/20 px-3 py-1.5 text-xs font-medium text-accent-400 transition-colors hover:bg-accent-500/30">
+        {copied ? "Copied!" : "Copy OID"}
+      </span>
     </button>
   );
 }
@@ -191,11 +196,9 @@ function RefRow({
       onMouseLeave={() => setHovered(false)}
       className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
     >
-      <td className="px-5 py-3.5 font-mono text-ink-100">
-        <span className="inline-flex items-center">
-          {payment.merchant_order_ref}
-          {hovered && <CopyOidButton oid={payment.id} />}
-        </span>
+      <td className="relative px-5 py-3.5 font-mono text-ink-100">
+        {payment.merchant_order_ref}
+        <CopyOidOverlay oid={payment.id} visible={hovered} />
       </td>
       <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{payment.id}</td>
       <td className="px-5 py-3.5 text-ink-300">{payment.store_id}</td>
