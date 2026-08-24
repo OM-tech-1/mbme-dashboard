@@ -5,28 +5,39 @@ import { ApiError, getGatewayCall, getPayment, getWebhook, listGatewayCalls, lis
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
-function CopyOidOverlay({ oid, visible }: { oid: string; visible: boolean }) {
-  const [copied, setCopied] = useState(false);
+function RowCopyButtons({ refValue, oid }: { refValue: string; oid: string }) {
+  const [copiedRef, setCopiedRef] = useState(false);
+  const [copiedOid, setCopiedOid] = useState(false);
 
-  function handleCopy(e: React.MouseEvent) {
+  function handleCopyRef(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(refValue);
+    setCopiedRef(true);
+    setTimeout(() => setCopiedRef(false), 1500);
+  }
+
+  function handleCopyOid(e: React.MouseEvent) {
     e.stopPropagation();
     navigator.clipboard.writeText(oid);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setCopiedOid(true);
+    setTimeout(() => setCopiedOid(false), 1500);
   }
 
   return (
-    <button
-      onClick={handleCopy}
-      className={`absolute inset-y-0 right-0 z-10 flex items-center justify-end rounded-r-lg bg-ink-800/90 pr-5 backdrop-blur-sm transition-opacity duration-200 ${
-        visible ? "opacity-100" : "pointer-events-none opacity-0"
-      }`}
-      style={{ left: 0 }}
-    >
-      <span className="rounded-md bg-accent-500/20 px-3 py-1.5 text-xs font-medium text-accent-400 transition-colors hover:bg-accent-500/30">
-        {copied ? "Copied!" : "Copy OID"}
-      </span>
-    </button>
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        onClick={handleCopyRef}
+        className="rounded bg-ink-600/80 px-2 py-0.5 text-xs font-medium text-ink-200 transition-colors hover:bg-ink-500/80 hover:text-ink-100"
+      >
+        {copiedRef ? "Copied!" : "Copy Ref"}
+      </button>
+      <button
+        onClick={handleCopyOid}
+        className="rounded bg-accent-500/20 px-2 py-0.5 text-xs font-medium text-accent-400 transition-colors hover:bg-accent-500/30"
+      >
+        {copiedOid ? "Copied!" : "Copy OID"}
+      </button>
+    </span>
   );
 }
 
@@ -196,9 +207,17 @@ function RefRow({
       onMouseLeave={() => setHovered(false)}
       className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
     >
-      <td className="relative px-5 py-3.5 font-mono text-ink-100">
-        {payment.merchant_order_ref}
-        <CopyOidOverlay oid={payment.id} visible={hovered} />
+      <td className="px-5 py-3.5 font-mono text-ink-100">
+        <span className="inline-flex items-center gap-2">
+          <span>{payment.merchant_order_ref}</span>
+          <span
+            className={`inline-flex transition-opacity duration-200 ${
+              hovered ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+          >
+            <RowCopyButtons refValue={payment.merchant_order_ref} oid={payment.id} />
+          </span>
+        </span>
       </td>
       <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{payment.id}</td>
       <td className="px-5 py-3.5 text-ink-300">{payment.store_id}</td>
