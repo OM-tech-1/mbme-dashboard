@@ -108,6 +108,7 @@ export default function Payments() {
           <thead>
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Order ref</th>
+              <th className="px-5 py-3 font-medium">OID</th>
               <th className="px-5 py-3 font-medium">Store</th>
               <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Amount</th>
@@ -119,14 +120,14 @@ export default function Payments() {
           <tbody>
             {items === null && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
                   Loading…
                 </td>
               </tr>
             )}
             {items?.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-ink-400">
+                <td colSpan={8} className="px-5 py-8 text-center text-ink-400">
                   No payments match.
                 </td>
               </tr>
@@ -138,6 +139,7 @@ export default function Payments() {
                 className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
               >
                 <td className="px-5 py-3.5 font-mono text-ink-100">{p.merchant_order_ref}</td>
+                <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{p.oid}</td>
                 <td className="px-5 py-3.5 text-ink-300">{p.store_id}</td>
                 <td className="px-5 py-3.5"><ModeBadge mode={p.mode} /></td>
                 <td className="px-5 py-3.5 text-ink-300">{formatAmount(p.amount_minor, p.currency)}</td>
