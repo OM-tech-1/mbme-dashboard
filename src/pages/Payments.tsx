@@ -5,6 +5,26 @@ import { ApiError, getGatewayCall, getPayment, getWebhook, listGatewayCalls, lis
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
+function CopyOidButton({ oid }: { oid: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(oid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="ml-2 rounded bg-ink-700 px-1.5 py-0.5 text-xs text-ink-300 transition hover:bg-ink-600 hover:text-ink-100"
+    >
+      {copied ? "Copied!" : "Copy OID"}
+    </button>
+  );
+}
+
 export default function Payments() {
   const [items, setItems] = useState<PaymentSummary[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | undefined>();
@@ -133,22 +153,7 @@ export default function Payments() {
               </tr>
             )}
             {items?.map((p) => (
-              <tr
-                key={p.id}
-                onClick={() => setDetailId(p.id)}
-                className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
-              >
-                <td className="px-5 py-3.5 font-mono text-ink-100">{p.merchant_order_ref}</td>
-                <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{p.id}</td>
-                <td className="px-5 py-3.5 text-ink-300">{p.store_id}</td>
-                <td className="px-5 py-3.5"><ModeBadge mode={p.mode} /></td>
-                <td className="px-5 py-3.5 text-ink-300">{formatAmount(p.amount_minor, p.currency)}</td>
-                <td className="px-5 py-3.5">
-                  <StateBadge state={p.state} />
-                </td>
-                <td className="px-5 py-3.5 text-ink-300">{p.attempts}</td>
-                <td className="px-5 py-3.5 text-ink-400">{formatDate(p.updated_at)}</td>
-              </tr>
+              <RefRow key={p.id} payment={p} onOpen={() => setDetailId(p.id)} />
             ))}
           </tbody>
         </table>
@@ -167,6 +172,41 @@ export default function Payments() {
 
       {detailId && <PaymentDetailModal id={detailId} onClose={() => setDetailId(null)} />}
     </Layout>
+  );
+}
+
+function RefRow({
+  payment,
+  onOpen,
+}: {
+  payment: PaymentSummary;
+  onOpen: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <tr
+      onClick={onOpen}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="cursor-pointer border-b border-ink-800 last:border-0 hover:bg-ink-800/50"
+    >
+      <td className="px-5 py-3.5 font-mono text-ink-100">
+        <span className="inline-flex items-center">
+          {payment.merchant_order_ref}
+          {hovered && <CopyOidButton oid={payment.id} />}
+        </span>
+      </td>
+      <td className="px-5 py-3.5 font-mono text-xs text-ink-300">{payment.id}</td>
+      <td className="px-5 py-3.5 text-ink-300">{payment.store_id}</td>
+      <td className="px-5 py-3.5"><ModeBadge mode={payment.mode} /></td>
+      <td className="px-5 py-3.5 text-ink-300">{formatAmount(payment.amount_minor, payment.currency)}</td>
+      <td className="px-5 py-3.5">
+        <StateBadge state={payment.state} />
+      </td>
+      <td className="px-5 py-3.5 text-ink-300">{payment.attempts}</td>
+      <td className="px-5 py-3.5 text-ink-400">{formatDate(payment.updated_at)}</td>
+    </tr>
   );
 }
 
