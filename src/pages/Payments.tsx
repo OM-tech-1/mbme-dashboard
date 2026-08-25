@@ -144,7 +144,7 @@ export default function Payments() {
           <thead>
             <tr className="border-b border-ink-700 text-xs uppercase tracking-wide text-ink-400">
               <th className="px-5 py-3 font-medium">Order ref</th>
-              <th className="px-5 py-3 font-medium">OID</th>
+              <th className="px-5 py-3 font-medium">ID</th>
               <th className="px-5 py-3 font-medium">Store</th>
               <th className="px-5 py-3 font-medium">Mode</th>
               <th className="px-5 py-3 font-medium">Amount</th>
@@ -337,29 +337,7 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
           {activeTab === "attempts" && (
             <div className="space-y-2">
               {detail.attempts.map((a) => (
-                <div
-                  key={a.id}
-                  onClick={() => toggleExpand(a.id)}
-                  className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-ink-500 text-xs">{expandedIds.has(a.id) ? "▼" : "▶"}</span>
-                      <span className="font-mono text-xs text-ink-300">{a.oid}</span>
-                    </div>
-                    <StateBadge state={a.state} />
-                  </div>
-                  {a.gateway_ref && <p className="mt-1 text-xs text-ink-400">gateway ref: {a.gateway_ref}</p>}
-                  {expandedIds.has(a.id) && (
-                    <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2 space-y-1">
-                      <div><span className="text-xs text-ink-400">ID: </span><span className="font-mono text-xs text-ink-300">{a.id}</span></div>
-                      <div><span className="text-xs text-ink-400">Created: </span><span className="text-xs text-ink-300">{formatDate(a.created_at)}</span></div>
-                      <div><span className="text-xs text-ink-400">Updated: </span><span className="text-xs text-ink-300">{formatDate(a.updated_at)}</span></div>
-                      <div><span className="text-xs text-ink-400">Payment link: </span><span className="text-xs text-ink-300">{a.has_payment_link ? "Yes" : "No"}</span></div>
-                      {a.link_expires_at && <div><span className="text-xs text-ink-400">Link expires: </span><span className="text-xs text-ink-300">{formatDate(a.link_expires_at)}</span></div>}
-                    </div>
-                  )}
-                </div>
+                <AttemptRow key={a.id} attempt={a} expanded={expandedIds.has(a.id)} onToggle={() => toggleExpand(a.id)} />
               ))}
             </div>
           )}
@@ -456,6 +434,63 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
         </>
       )}
     </Modal>
+  );
+}
+
+function AttemptRow({
+  attempt,
+  expanded,
+  onToggle,
+}: {
+  attempt: import("../lib/api").PaymentDetail["attempts"][number];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const [oidHovered, setOidHovered] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function handleOidClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(attempt.oid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div
+      onClick={onToggle}
+      className="cursor-pointer rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm transition hover:border-ink-600"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-ink-500 text-xs">{expanded ? "▼" : "▶"}</span>
+          <span
+            className="font-mono text-xs text-ink-300 cursor-pointer relative"
+            onMouseEnter={() => setOidHovered(true)}
+            onMouseLeave={() => setOidHovered(false)}
+            onClick={handleOidClick}
+          >
+            {attempt.oid}
+            {oidHovered && (
+              <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-ink-600 px-2 py-0.5 text-[10px] text-ink-200 shadow-lg">
+                {copied ? "Copied!" : "Click to copy"}
+              </span>
+            )}
+          </span>
+        </div>
+        <StateBadge state={attempt.state} />
+      </div>
+      {attempt.gateway_ref && <p className="mt-1 text-xs text-ink-400">gateway ref: {attempt.gateway_ref}</p>}
+      {expanded && (
+        <div className="mt-2 rounded-md border border-ink-600 bg-ink-900 p-2 space-y-1">
+          <div><span className="text-xs text-ink-400">ID: </span><span className="font-mono text-xs text-ink-300">{attempt.id}</span></div>
+          <div><span className="text-xs text-ink-400">Created: </span><span className="text-xs text-ink-300">{formatDate(attempt.created_at)}</span></div>
+          <div><span className="text-xs text-ink-400">Updated: </span><span className="text-xs text-ink-300">{formatDate(attempt.updated_at)}</span></div>
+          <div><span className="text-xs text-ink-400">Payment link: </span><span className="text-xs text-ink-300">{attempt.has_payment_link ? "Yes" : "No"}</span></div>
+          {attempt.link_expires_at && <div><span className="text-xs text-ink-400">Link expires: </span><span className="text-xs text-ink-300">{formatDate(attempt.link_expires_at)}</span></div>}
+        </div>
+      )}
+    </div>
   );
 }
 
