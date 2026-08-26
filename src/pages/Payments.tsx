@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { Badge, formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
-import { ApiError, checkPaymentStatus, CheckStatusResult, getGatewayCall, getPayment, getWebhook, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
+import { ApiError, checkPaymentStatus, CheckStatusResult, exportPayments, getGatewayCall, getPayment, getWebhook, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
@@ -69,8 +69,7 @@ export default function Payments() {
 
   function applyFilterForm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const mode = (fd.get("mode") as string) || undefined;
+    const fd = new FormData(e.currentTarget);      const mode = (fd.get("mode") as string) || undefined;
     if (mode !== undefined) localStorage.setItem(MODE_FILTER_KEY, mode);
     setFilters({
       store_id: (fd.get("store_id") as string) || undefined,
@@ -78,6 +77,8 @@ export default function Payments() {
       currency: (fd.get("currency") as string) || undefined,
       mode,
       q: (fd.get("q") as string) || undefined,
+      from: (fd.get("from") as string) || undefined,
+      to: (fd.get("to") as string) || undefined,
     });
   }
 
@@ -129,11 +130,53 @@ export default function Payments() {
           <option value="live">Live</option>
           <option value="test">Test</option>
         </select>
+        <div>
+          <label className="mb-1 block text-xs text-ink-400">From</label>
+          <input
+            name="from"
+            type="datetime-local"
+            className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-ink-400">To</label>
+          <input
+            name="to"
+            type="datetime-local"
+            className="rounded-lg border border-ink-600 bg-ink-800 px-3 py-1.5 text-sm text-ink-100 outline-none focus:border-accent-500"
+          />
+        </div>
         <button
           type="submit"
           className="rounded-lg bg-ink-700 px-4 py-1.5 text-sm font-medium text-ink-100 transition hover:bg-ink-600"
         >
           Filter
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              const { url, filename } = await exportPayments({
+                store_id: filters.store_id,
+                state: filters.state,
+                currency: filters.currency,
+                mode: filters.mode,
+                q: filters.q,
+                from: filters.from,
+                to: filters.to,
+              });
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = filename;
+              a.click();
+              URL.revokeObjectURL(url);
+            } catch (e) {
+              setError(e instanceof ApiError ? e.message : "Export failed.");
+            }
+          }}
+          className="rounded-lg bg-accent-500/20 px-4 py-1.5 text-sm font-medium text-accent-400 transition hover:bg-accent-500/30"
+        >
+          ↓ Download CSV
         </button>
       </form>
 

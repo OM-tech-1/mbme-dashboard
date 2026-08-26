@@ -34,7 +34,7 @@ export default function Stores() {
 
   useEffect(() => {
     refresh();
-    getStats("24h").then(setStats).catch(() => {});
+    getStats({ window: "24h" }).then(setStats).catch(() => {});
   }, []);
 
   async function toggleActive(store: StoreView) {

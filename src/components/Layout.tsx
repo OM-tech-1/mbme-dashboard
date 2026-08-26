@@ -3,6 +3,7 @@ import { clearSession } from "../lib/api";
 
 const TABS = [
   { to: "/", label: "Stores", end: true },
+  { to: "/stats", label: "Stats" },
   { to: "/payments", label: "Payments" },
   { to: "/gateway-calls", label: "Gateway calls" },
   { to: "/webhooks", label: "Webhooks" },

@@ -163,6 +163,17 @@ function qs(params: Record<string, string | undefined>): string {
   return s ? `?${s}` : "";
 }
 
+// ---- whoami ----
+
+export interface WhoamiInfo {
+  name: string;
+  scopes: string[];
+}
+
+export function getWhoami() {
+  return request<WhoamiInfo>("/whoami");
+}
+
 // ---- stats ----
 
 export interface Stats {
@@ -175,8 +186,15 @@ export interface Stats {
   gateway_call_errors: number;
 }
 
-export function getStats(window?: string, storeId?: string, mode?: string) {
-  return request<Stats>(`/stats${qs({ window, store_id: storeId, mode })}`);
+export interface StatsParams {
+  [key: string]: string | undefined;
+  window?: string;
+  store_id?: string;
+  mode?: string;
+}
+
+export function getStats(params: StatsParams = {}) {
+  return request<Stats>(`/stats${qs(params)}`);
 }
 
 // ---- payments ----
@@ -255,6 +273,42 @@ export function checkPaymentStatus(id: string) {
   return request<CheckStatusResult>(`/payments/${encodeURIComponent(id)}/check-status`, { method: "POST" });
 }
 
+export interface ExportPaymentsParams {
+  [key: string]: string | undefined;
+  store_id?: string;
+  state?: string;
+  currency?: string;
+  mode?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+}
+
+export async function exportPayments(params: ExportPaymentsParams = {}): Promise<{ url: string; filename: string }> {
+  const session = getSession();
+  const headers: Record<string, string> = {};
+  if (session) headers["Authorization"] = `Bearer ${session.token}`;
+
+  const res = await fetch(`${BASE_URL}/payments/export${qs(params)}`, { headers });
+
+  if (res.status === 401) {
+    clearSession();
+    window.location.assign("/login");
+    throw new ApiError(401, "unauthorized", "session expired");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error ?? "error", body.detail ?? res.statusText);
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename=(.+)/);
+  const filename = match ? match[1] : `mbme-payments-${new Date().toISOString().slice(0, 10)}.csv`;
+  const url = URL.createObjectURL(blob);
+  return { url, filename };
+}
+
 // ---- gateway calls ----
 
 export interface GatewayCallSummary {
@@ -302,6 +356,22 @@ export function listWebhooks(f: { oid?: string; status?: string; mode?: string; 
 
 export function getWebhook(id: string, reveal = false) {
   return request<WebhookDetail>(`/webhooks/${encodeURIComponent(id)}${qs({ reveal: reveal ? "true" : undefined })}`);
+}
+
+// ---- inbound events (return / callback) ----
+
+export interface InboundEvent {
+  id: string;
+  source: string;
+  oid?: string;
+  body: unknown;
+  received_at: string;
+  mode: string;
+}
+
+export function listInboundEvents(f: { source?: string; oid?: string; mode?: string; cursor?: string } = {}) {
+  const { cursor, ...rest } = f;
+  return request<{ items: InboundEvent[]; next_cursor?: string }>(`/inbound-events${qs({ ...rest, cursor })}`);
 }
 
 // ---- outbox ----

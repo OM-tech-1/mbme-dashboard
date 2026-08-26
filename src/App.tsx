@@ -5,6 +5,7 @@ import GatewayCalls from "./pages/GatewayCalls";
 import Login from "./pages/Login";
 import Outbox from "./pages/Outbox";
 import Payments from "./pages/Payments";
+import Stats from "./pages/Stats";
 import Stores from "./pages/Stores";
 import Webhooks from "./pages/Webhooks";
 
@@ -23,6 +24,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={protect(<Stores />)} />
+        <Route path="/stats" element={protect(<Stats />)} />
         <Route path="/payments" element={protect(<Payments />)} />
         <Route path="/gateway-calls" element={protect(<GatewayCalls />)} />
         <Route path="/webhooks" element={protect(<Webhooks />)} />
