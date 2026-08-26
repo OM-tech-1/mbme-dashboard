@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layout";
 import { Badge, formatAmount, formatDate, Modal, ModeBadge, StateBadge } from "../components/ui";
-import { ApiError, getGatewayCall, getPayment, getWebhook, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
+import { ApiError, checkPaymentStatus, CheckStatusResult, getGatewayCall, getPayment, getWebhook, listGatewayCalls, listOutbox, listPayments, listWebhooks, PaymentDetail, PaymentFilters, PaymentSummary } from "../lib/api";
 
 const MODE_FILTER_KEY = "mbme_dashboard_mode_filter";
 
@@ -240,6 +240,9 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
   const [outboxItems, setOutboxItems] = useState<import("../lib/api").OutboxItem[] | null>(null);
   const [activeTab, setActiveTab] = useState<"attempts" | "gateway" | "webhooks" | "outbox">("attempts");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [checkLoading, setCheckLoading] = useState(false);
+  const [checkResult, setCheckResult] = useState<CheckStatusResult | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   function toggleExpand(id: string) {
     setExpandedIds((prev) => {
@@ -294,9 +297,45 @@ function PaymentDetailModal({ id, onClose }: { id: string; onClose: () => void }
             <div className="flex items-center gap-2">
               <ModeBadge mode={detail.payment.mode} />
               <StateBadge state={detail.payment.state} />
+              <button
+                onClick={async () => {
+                  setCheckLoading(true);
+                  setCheckResult(null);
+                  setCheckError(null);
+                  try {
+                    const res = await checkPaymentStatus(detail.payment.id);
+                    setCheckResult(res);
+                    // Refresh payment detail to show updated state
+                    const updated = await getPayment(detail.payment.id);
+                    setDetail(updated);
+                  } catch (e) {
+                    setCheckError(e instanceof ApiError ? e.message : "Status check failed.");
+                  } finally {
+                    setCheckLoading(false);
+                  }
+                }}
+                disabled={checkLoading}
+                className="rounded-lg bg-accent-500/20 px-3 py-1 text-xs font-medium text-accent-400 transition hover:bg-accent-500/30 disabled:opacity-50"
+              >
+                {checkLoading ? "Checking…" : "Check Status"}
+              </button>
             </div>
           </div>
 
+          {checkResult && (
+            <div className="mb-4 rounded-lg bg-accent-500/10 px-3 py-2 text-sm text-accent-400">
+              {checkResult.changed ? (
+                <span>State updated: <strong>{checkResult.old_state}</strong> → <strong>{checkResult.new_state}</strong></span>
+              ) : (
+                <span>No state change — still <strong>{checkResult.new_state}</strong></span>
+              )}
+            </div>
+          )}
+          {checkError && (
+            <div className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              {checkError}
+            </div>
+          )}
           <dl className="mb-6 grid grid-cols-2 gap-3 text-sm">
             <div>
               <dt className="text-xs text-ink-400">Store</dt>

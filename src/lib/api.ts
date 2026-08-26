@@ -242,6 +242,19 @@ export function getPayment(id: string) {
   return request<PaymentDetail>(`/payments/${encodeURIComponent(id)}`);
 }
 
+export interface CheckStatusResult {
+  intent_id: string;
+  oid: string;
+  old_state: string;
+  new_state: string;
+  changed: boolean;
+  gateway_ref: string;
+}
+
+export function checkPaymentStatus(id: string) {
+  return request<CheckStatusResult>(`/payments/${encodeURIComponent(id)}/check-status`, { method: "POST" });
+}
+
 // ---- gateway calls ----
 
 export interface GatewayCallSummary {
